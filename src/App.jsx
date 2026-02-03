@@ -495,9 +495,15 @@ const CreatePage = ({ theme, setToast }) => {
 
 const PrankNoButton = ({ containerRef, onInteraction, theme }) => {
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [clickCount, setClickCount] = useState(0);
+  const [clickCount, setClickCount] = useState(0); // Phase 2: Shrink factor
+  const [textIndex, setTextIndex] = useState(0); // Phase 1: Text cycling
   const buttonRef = useRef(null);
-  const isMobile = useMemo(() => /Android|iPhone|iPad/i.test(navigator.userAgent), []);
+  const isMobile = useMemo(() => {
+    const ua = navigator.userAgent;
+    return /Android|iPhone|iPad/i.test(ua);
+  }, []);
+
+  const NO_TEXTS = ["No", "Are you sure?", "Think again", "Last chance", "...okay wow"];
 
   const teleport = () => {
     if (isMobile || !containerRef.current || !buttonRef.current) return;
@@ -509,19 +515,43 @@ const PrankNoButton = ({ containerRef, onInteraction, theme }) => {
   };
 
   const handleInteraction = () => {
-    const nextCount = clickCount + 1;
-    setClickCount(nextCount);
-    if (onInteraction) onInteraction({ count: nextCount });
-    if (!isMobile) teleport();
+    if (isMobile) {
+      // Phase 1: Cycle text until the end
+      if (textIndex < NO_TEXTS.length - 1) {
+        setTextIndex(prev => prev + 1);
+      } else {
+        // Phase 2: Start shrinking
+        setClickCount(prev => prev + 1);
+      }
+    } else {
+      setClickCount(prev => prev + 1);
+      teleport();
+    }
+    
+    if (onInteraction) onInteraction({ count: clickCount + textIndex + 1 });
   };
+
+  const currentScale = isMobile 
+    ? (textIndex === NO_TEXTS.length - 1 ? Math.max(0, 1 - clickCount * 0.2) : 1)
+    : 1;
+
+  // Fully remove from DOM when invisible
+  if (currentScale <= 0) return null;
 
   return (
     <motion.button
-      ref={buttonRef} onMouseEnter={teleport} onClick={handleInteraction}
-      animate={{ x: pos.x, y: pos.y, scale: isMobile && clickCount > 3 ? Math.max(0, 1 - (clickCount-3)*0.2) : 1 }}
+      ref={buttonRef} 
+      onMouseEnter={!isMobile ? teleport : undefined} 
+      onClick={handleInteraction}
+      animate={{ 
+        x: pos.x, 
+        y: pos.y, 
+        scale: currentScale
+      }}
+      transition={{ type: "spring", damping: 15, stiffness: 150 }}
       className="w-full px-8 py-3 bg-gray-100 text-gray-500 rounded-full font-medium shadow-sm active:scale-90 transition-all z-50 relative"
     >
-      No
+      {isMobile ? NO_TEXTS[textIndex] : "No"}
     </motion.button>
   );
 };
